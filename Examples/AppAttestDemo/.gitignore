@@ -1,0 +1,51 @@
+# Xcode
+build/
+DerivedData/
+DerivedDataRelease/
+TAPCamDemo.xcodeproj/xcuserdata/
+TAPCamDemo.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# Code signing and provisioning
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.cer
+*.certSigningRequest
+
+# Secrets and environment files
+.env
+.env.*
+*.pem
+*.key
+GoogleService-Info.plist
+
+# macOS
+.DS_Store
+
+# AppCode
+.idea/
+
+# Codex local environment
+.codex/
