@@ -55,6 +55,9 @@ public actor DefaultAppAttestClient: AppAttestClient {
         let challenge = try await backend.requestChallenge(
             AppAttestChallengeRequest(purpose: .attestation, credentialName: credentialName)
         )
+        if let expiresAt = challenge.expiresAt, expiresAt < Date() {
+            throw AppAttestError.challengeRejected("Challenge has already expired.")
+        }
         await reportProgress("DCAppAttestService.generateKey")
         let keyId = try await deviceService.generateKey()
         await reportProgress("SHA256(challenge)")
@@ -116,7 +119,8 @@ public actor DefaultAppAttestClient: AppAttestClient {
         }
 
         await reportProgress("credentialStore.credential")
-        guard let credential = try await credentialStore.credential(named: credentialName) else {
+        guard let credential = try await credentialStore.credential(named: credentialName),
+              credential.status == .ready else {
             throw AppAttestError.credentialMissing(credentialName)
         }
 
@@ -124,6 +128,9 @@ public actor DefaultAppAttestClient: AppAttestClient {
         let challenge = try await backend.requestChallenge(
             AppAttestChallengeRequest(purpose: .assertion, credentialName: credentialName)
         )
+        if let expiresAt = challenge.expiresAt, expiresAt < Date() {
+            throw AppAttestError.challengeRejected("Challenge has already expired.")
+        }
         await reportProgress("build request binding")
         let binding = request.binding(challenge: challenge.challenge)
         await reportProgress("DCAppAttestService.generateAssertion")

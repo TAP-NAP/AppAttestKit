@@ -75,10 +75,27 @@ public nonisolated struct HTTPAppAttestBackend: AppAttestBackend, @unchecked Sen
             return false
         }
 
-        return host == "localhost"
-            || host == "127.0.0.1"
-            || host == "::1"
-            || host.hasSuffix(".local")
+        if host == "localhost" || host.hasSuffix(".local") {
+            return true
+        }
+
+        // IPv6 loopback: ::1 and its unabbreviated forms
+        if host == "::1" || host == "0:0:0:0:0:0:0:1" {
+            return true
+        }
+
+        // IPv4 loopback: the entire 127.0.0.0/8 block.
+        // UInt8(_:) initialiser rejects both non-numeric strings and values outside 0-255,
+        // so allSatisfy ensures the host is a syntactically valid dotted-decimal IPv4 address.
+        let components = host.split(separator: ".", omittingEmptySubsequences: false)
+        if components.count == 4,
+           components.allSatisfy({ UInt8($0) != nil }),
+           let first = UInt8(components[0]),
+           first == 127 {
+            return true
+        }
+
+        return false
     }
 
     private func post<Request: Encodable, Response: Decodable>(
@@ -110,8 +127,13 @@ public nonisolated struct HTTPAppAttestBackend: AppAttestBackend, @unchecked Sen
     }
 
     private func endpoint(_ path: String) -> URL {
-        path.split(separator: "/").reduce(baseURL) { url, component in
-            url.appendingPathComponent(String(component))
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return baseURL
         }
+        // Strip any trailing slash from the base path so the join never produces "//".
+        let basePath = components.path.hasSuffix("/") ? String(components.path.dropLast()) : components.path
+        // Ensure the path segment always starts with "/" before appending.
+        components.path = basePath + (path.hasPrefix("/") ? path : "/" + path)
+        return components.url ?? baseURL
     }
 }

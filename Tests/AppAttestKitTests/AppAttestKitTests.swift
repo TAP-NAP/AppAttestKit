@@ -178,9 +178,62 @@ struct AppAttestKitTests {
     @Test func httpBackendDetectsForbiddenLocalHosts() {
         #expect(HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "http://localhost:8080")!))
         #expect(HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "http://127.0.0.1:8080")!))
+        #expect(HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "http://127.0.0.2:8080")!))
+        #expect(HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "http://127.1.2.3")!))
         #expect(HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "http://[::1]:8080")!))
         #expect(HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "http://printer.local")!))
         #expect(!HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "https://api.example.com")!))
+    }
+
+    @Test func generateAssertionFailsForRevokedCredential() async throws {
+        let now = Date()
+        let store = InMemoryCredentialStore()
+        try await store.save(
+            AppAttestCredential(
+                credentialName: "revoked_credential",
+                keyId: "revoked-key",
+                credentialId: nil,
+                status: .revoked,
+                environment: .development,
+                createdAt: now,
+                updatedAt: now
+            )
+        )
+
+        let client = DefaultAppAttestClient(
+            backend: MockAppAttestBackend(),
+            credentialStore: store,
+            deviceService: MockAppAttestDeviceService(),
+            environment: .development
+        )
+
+        do {
+            _ = try await client.generateAssertion(
+                credentialName: "revoked_credential",
+                request: AppAttestProtectedRequest(method: "GET", path: "/protected")
+            )
+            Issue.record("Expected credentialMissing error for revoked credential.")
+        } catch AppAttestError.credentialMissing(let name) {
+            #expect(name == "revoked_credential")
+        }
+    }
+
+    @Test func prepareRejectsExpiredChallenge() async throws {
+        let store = InMemoryCredentialStore()
+        let backend = ExpiredChallengeBackend()
+        let client = DefaultAppAttestClient(
+            backend: backend,
+            credentialStore: store,
+            deviceService: MockAppAttestDeviceService(),
+            environment: .development
+        )
+
+        do {
+            _ = try await client.prepare(credentialName: "installation_keyid")
+            Issue.record("Expected challengeRejected error for expired challenge.")
+        } catch AppAttestError.challengeRejected {
+            // expected
+        }
     }
 
     #if DEBUG
@@ -293,5 +346,22 @@ private final class MockAppAttestDeviceService: AppAttestDeviceService, @uncheck
     func generateAssertion(_ keyId: String, clientDataHash: Data) async throws -> Data {
         assertedKeyId = keyId
         return Data("mock-assertion".utf8)
+    }
+}
+
+private actor ExpiredChallengeBackend: AppAttestBackend {
+    /// Negative offset so the challenge is already expired when the client receives it.
+    private static let expiredChallengeOffsetSeconds: TimeInterval = -60
+
+    func requestChallenge(_ request: AppAttestChallengeRequest) async throws -> AppAttestChallenge {
+        AppAttestChallenge(
+            challengeId: "expired-id",
+            challenge: Data("expired".utf8),
+            expiresAt: Date().addingTimeInterval(Self.expiredChallengeOffsetSeconds)
+        )
+    }
+
+    func registerAttestation(_ request: AppAttestRegistrationRequest) async throws -> AppAttestRegistrationResult {
+        AppAttestRegistrationResult(credentialId: nil, status: .accepted)
     }
 }
