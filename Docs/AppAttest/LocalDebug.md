@@ -18,6 +18,11 @@ nearbycommunity
 It records locally generated challenges, registrations, and assertions so the
 example app can export JSON or raw attestation CBOR.
 
+Local debug challenges return an `expiresAt` about 24 hours in the future. This
+keeps manual local testing and export flows from failing due to short challenge
+lifetimes. Production servers should still issue short-lived, single-use
+challenges.
+
 ## Safety Boundary
 
 The local debug backend does not validate production security. It accepts all
@@ -46,6 +51,7 @@ The debug export includes:
 - `attestationCertificates`
 - `assertionObject`
 - `requestBinding`
+- `expiresAt`
 - `createdAt`
 
 Binary fields are base64url encoded. The raw CBOR file export writes exactly

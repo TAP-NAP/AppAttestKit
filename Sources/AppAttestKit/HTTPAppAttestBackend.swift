@@ -76,8 +76,8 @@ public nonisolated struct HTTPAppAttestBackend: AppAttestBackend, @unchecked Sen
         }
 
         return host == "localhost"
-            || host == "127.0.0.1"
-            || host == "::1"
+            || isIPv4Loopback(host)
+            || isIPv6Loopback(host)
             || host.hasSuffix(".local")
     }
 
@@ -109,9 +109,45 @@ public nonisolated struct HTTPAppAttestBackend: AppAttestBackend, @unchecked Sen
         return try decoder.decode(Response.self, from: data)
     }
 
-    private func endpoint(_ path: String) -> URL {
-        path.split(separator: "/").reduce(baseURL) { url, component in
-            url.appendingPathComponent(String(component))
+    func endpoint(_ path: String) -> URL {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return baseURL
+        }
+
+        components.percentEncodedPath = Self.joinPercentEncodedPath(
+            base: components.percentEncodedPath,
+            path: path
+        )
+        return components.url ?? baseURL
+    }
+
+    private static func isIPv4Loopback(_ host: String) -> Bool {
+        let octets = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4 else {
+            return false
+        }
+
+        let values = octets.compactMap { UInt8($0) }
+        return values.count == 4 && values[0] == 127
+    }
+
+    private static func isIPv6Loopback(_ host: String) -> Bool {
+        host == "::1" || host == "0:0:0:0:0:0:0:1"
+    }
+
+    private static func joinPercentEncodedPath(base: String, path: String) -> String {
+        let trimmedBase = base.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        switch (trimmedBase.isEmpty, trimmedPath.isEmpty) {
+        case (true, true):
+            return ""
+        case (true, false):
+            return "/\(trimmedPath)"
+        case (false, true):
+            return "/\(trimmedBase)"
+        case (false, false):
+            return "/\(trimmedBase)/\(trimmedPath)"
         }
     }
 }

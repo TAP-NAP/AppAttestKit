@@ -11,8 +11,18 @@ of the library target.
 
 ## Install
 
-Swift Package Manager
-AppAttestKit may be installed via Swift Package Manager, by pointing to this repo's URL.
+In Xcode, choose `File > Add Package Dependencies...` and enter:
+
+```text
+https://github.com/<owner>/AppAttestKit.git
+```
+
+For local development, add this repository root as a local package. In
+`Package.swift`, use:
+
+```swift
+.package(url: "https://github.com/<owner>/AppAttestKit.git", from: "0.1.0")
+```
 
 ## Code Boundaries
 
@@ -31,6 +41,28 @@ credential metadata for one App Attest key.
 Apple attests the generated App Attest key. Apple does not attest
 `credentialName`; your backend decides how a credential name maps to your own
 business rules.
+
+## Server Wire Format
+
+Backend challenge responses use base64url challenge bytes and ISO 8601 UTC
+expiration times:
+
+```json
+{
+  "challengeId": "server-challenge-id",
+  "challenge": "base64url-random-bytes",
+  "expiresAt": "2026-04-25T09:30:00Z"
+}
+```
+
+`challengeId` is server state; `challenge` is the random byte payload hashed
+into Apple App Attest calls. `revoked` means a credential/key is no longer
+accepted for assertions. It does not make an untrusted device trustworthy again.
+
+## To Do
+
+- Key Rotation: consider a future explicit `rotationRequired` or `expired`
+  status so routine renewal is not conflated with security revocation.
 
 ## Primary Documents
 

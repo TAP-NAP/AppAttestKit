@@ -55,6 +55,7 @@ public actor DefaultAppAttestClient: AppAttestClient {
         let challenge = try await backend.requestChallenge(
             AppAttestChallengeRequest(purpose: .attestation, credentialName: credentialName)
         )
+        try Self.validateChallenge(challenge, purpose: .attestation)
         await reportProgress("DCAppAttestService.generateKey")
         let keyId = try await deviceService.generateKey()
         await reportProgress("SHA256(challenge)")
@@ -120,10 +121,17 @@ public actor DefaultAppAttestClient: AppAttestClient {
             throw AppAttestError.credentialMissing(credentialName)
         }
 
+        guard credential.status == .ready else {
+            throw AppAttestError.invalidConfiguration(
+                "No ready App Attest credential exists for \(credentialName). Run prepareIfNeeded first."
+            )
+        }
+
         await reportProgress("backend.requestChallenge(purpose: assertion)")
         let challenge = try await backend.requestChallenge(
             AppAttestChallengeRequest(purpose: .assertion, credentialName: credentialName)
         )
+        try Self.validateChallenge(challenge, purpose: .assertion)
         await reportProgress("build request binding")
         let binding = request.binding(challenge: challenge.challenge)
         await reportProgress("DCAppAttestService.generateAssertion")
@@ -171,6 +179,16 @@ public actor DefaultAppAttestClient: AppAttestClient {
         case .accepted:
             return .ready
         case .revoked:
+            let revokedCredential = AppAttestCredential(
+                credentialName: credential.credentialName,
+                keyId: credential.keyId,
+                credentialId: credential.credentialId,
+                status: .revoked,
+                environment: credential.environment,
+                createdAt: credential.createdAt,
+                updatedAt: Date()
+            )
+            try await credentialStore.save(revokedCredential)
             return .revoked
         case .unknown:
             return credential.status
@@ -189,6 +207,18 @@ public actor DefaultAppAttestClient: AppAttestClient {
             throw AppAttestError.invalidConfiguration("credentialName cannot be empty.")
         }
         return trimmed
+    }
+
+    private static func validateChallenge(_ challenge: AppAttestChallenge, purpose: AppAttestPurpose) throws {
+        guard let expiresAt = challenge.expiresAt else {
+            return
+        }
+
+        guard expiresAt > Date() else {
+            throw AppAttestError.challengeRejected(
+                "\(purpose.rawValue) challenge \(challenge.challengeId) expired at \(expiresAt)."
+            )
+        }
     }
 
     private func reportProgress(_ message: String) async {

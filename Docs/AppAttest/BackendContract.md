@@ -36,13 +36,21 @@ Response:
 {
   "challengeId": "server-challenge-id",
   "challenge": "base64url-random-bytes",
-  "expiresAt": "2026-04-24T13:00:00Z"
+  "expiresAt": "2026-04-25T09:30:00Z"
 }
 ```
 
 `challengeId` identifies server-side challenge state. `challenge` is the random
 byte payload that the client hashes into Apple App Attest calls. Production
 challenges must be short-lived and single-use.
+
+Wire format:
+
+- `challenge` is base64url without padding.
+- `expiresAt` is optional but recommended. When present, it must be an ISO 8601
+  UTC timestamp parseable by Swift `.iso8601`, for example
+  `2026-04-25T09:30:00Z`.
+- The client rejects an expired challenge before calling Apple App Attest APIs.
 
 ## Attestation Endpoint
 
@@ -72,6 +80,10 @@ The server validates the Apple attestation object, app identifier, App Attest
 environment, challenge, public key, and initial sign counter before returning
 `accepted`.
 
+`attestationObject` is base64url without padding. If the server has marked the
+device or environment as untrusted, it should reject new registration instead
+of asking the client to create another key.
+
 ## Credential Status Endpoint
 
 Default path: `POST /app-attest/credentials/status`
@@ -99,6 +111,11 @@ Response body is one of:
 "unknown"
 ```
 
+`revoked` means the server no longer accepts that credential/key for assertions.
+AppAttestKit caches this state locally so the client avoids known-bad assertion
+work, but the server remains the authority. Revocation is not a device repair
+mechanism.
+
 ## Protected Business Requests
 
 `AppAttestAssertionEnvelope.applyHeaders(to:)` sets:
@@ -115,7 +132,12 @@ The server verifies the assertion signature with the registered public key,
 checks the sign counter, confirms the challenge is valid and unused, confirms
 the credential name matches the registered key, and recomputes request binding.
 
+`X-App-Attest-Assertion` and `X-App-Attest-Request-Binding` are base64url
+without padding. The request binding encodes method, path, sorted query items,
+body hash, challenge hash, and optional nonce.
+
 ## Release HTTP Guard
 
-Release builds refuse HTTP backends whose host is `localhost`, `127.0.0.1`,
-`::1`, or ends with `.local`.
+Release builds refuse HTTP backends whose host is `localhost`, any IPv4
+`127.0.0.0/8` loopback address, IPv6 loopback (`::1` or
+`0:0:0:0:0:0:0:1`), or ends with `.local`.

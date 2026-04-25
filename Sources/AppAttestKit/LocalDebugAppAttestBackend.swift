@@ -12,6 +12,7 @@ import Foundation
 /// This does not perform production-grade attestation or assertion validation.
 public actor LocalDebugAppAttestBackend: AppAttestBackend {
     public static let fixedChallengeString = "nearbycommunity"
+    public static let challengeLifetime: TimeInterval = 24 * 60 * 60
 
     private var challenges: [AppAttestDebugChallengeRecord] = []
     private var registrations: [AppAttestDebugRegistrationRecord] = []
@@ -21,12 +22,13 @@ public actor LocalDebugAppAttestBackend: AppAttestBackend {
 
     public func requestChallenge(_ request: AppAttestChallengeRequest) async throws -> AppAttestChallenge {
         let challenge = Data(Self.fixedChallengeString.utf8)
+        let expiresAt = Date().addingTimeInterval(Self.challengeLifetime)
         let record = AppAttestDebugChallengeRecord(
             challengeId: Self.fixedChallengeString,
             challenge: challenge,
             purpose: request.purpose,
             credentialName: request.credentialName,
-            expiresAt: nil,
+            expiresAt: expiresAt,
             createdAt: Date()
         )
         challenges.append(record)
@@ -34,7 +36,7 @@ public actor LocalDebugAppAttestBackend: AppAttestBackend {
         return AppAttestChallenge(
             challengeId: Self.fixedChallengeString,
             challenge: challenge,
-            expiresAt: nil
+            expiresAt: expiresAt
         )
     }
 
