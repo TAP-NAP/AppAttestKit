@@ -9,7 +9,7 @@ import AppAttestKit
 enum AppAttestBackendMode: Hashable {
     case http(baseURL: URL)
     #if DEBUG
-    case localDebug
+    case localDebug(challenge: String)
     #endif
 }
 
@@ -49,8 +49,8 @@ enum AppAttestRuntimeFactory {
         progressHandler: (@MainActor @Sendable (String) async -> Void)? = nil
     ) throws -> AppAttestRuntime {
         switch mode {
-        case .localDebug:
-            let backend = LocalDebugAppAttestBackend()
+        case .localDebug(let challenge):
+            let backend = LocalDebugAppAttestBackend(challengeString: challenge)
             return AppAttestRuntime(
                 mode: mode,
                 client: DefaultAppAttestClient(
@@ -60,7 +60,7 @@ enum AppAttestRuntimeFactory {
                     environment: .development,
                     progressHandler: progressHandler
                 ),
-                backendDescription: "Local Debug Backend",
+                backendDescription: "Local Debug Backend: \(challenge)",
                 debugBackend: backend
             )
 
@@ -83,7 +83,11 @@ enum AppAttestRuntimeFactory {
         }
     }
     #else
-    static func make(mode: AppAttestBackendMode = AppAttestRuntimeDefaults.mode) throws -> AppAttestRuntime {
+    static func make() throws -> AppAttestRuntime {
+        try make(mode: AppAttestRuntimeDefaults.defaultMode())
+    }
+
+    static func make(mode: AppAttestBackendMode) throws -> AppAttestRuntime {
         switch mode {
         case .http(let baseURL):
             let backend = try HTTPAppAttestBackend(baseURL: baseURL)
@@ -122,13 +126,43 @@ enum AppAttestRuntimeFactory {
 }
 
 enum AppAttestRuntimeDefaults {
-    static var mode: AppAttestBackendMode {
+    static var httpBaseURLText: String {
         #if DEBUG
-        .localDebug
+        "https://example.com"
         #else
-        .http(baseURL: URL(string: "https://example.com")!)
+        configuredProductionBackendURL?.absoluteString ?? ""
         #endif
     }
+
+    #if DEBUG
+    static var mode: AppAttestBackendMode {
+        .localDebug(challenge: LocalDebugAppAttestBackend.defaultChallengeString)
+    }
+    #else
+    static func defaultMode() throws -> AppAttestBackendMode {
+        guard let url = configuredProductionBackendURL else {
+            throw AppAttestError.invalidConfiguration(
+                "Set APP_ATTEST_BACKEND_URL in the app Info.plist before using App Attest in Release."
+            )
+        }
+        return .http(baseURL: url)
+    }
+
+    private static var configuredProductionBackendURL: URL? {
+        guard let rawValue = Bundle.main.object(forInfoDictionaryKey: "APP_ATTEST_BACKEND_URL") as? String else {
+            return nil
+        }
+
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty,
+              !trimmedValue.contains("$("),
+              let url = URL(string: trimmedValue),
+              url.scheme?.lowercased() == "https" else {
+            return nil
+        }
+        return url
+    }
+    #endif
 }
 
 private actor UnavailableAppAttestClient: AppAttestClient {

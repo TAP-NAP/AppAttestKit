@@ -30,7 +30,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXBuildFile section */
-		F2C69E1B2F9CBB7500B80427 /* AppAttestKit in Frameworks */ = {isa = PBXBuildFile; productRef = F2C69E1C2F9CBB7500B80427 /* AppAttestKit */; };
+		F2C69E312F9CC25800B80427 /* AppAttestKit in Frameworks */ = {isa = PBXBuildFile; productRef = F2C69E302F9CC25800B80427 /* AppAttestKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -56,7 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F2C69E1B2F9CBB7500B80427 /* AppAttestKit in Frameworks */,
+				F2C69E312F9CC25800B80427 /* AppAttestKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,7 +117,7 @@
 			);
 			name = AppAttestDemo;
 			packageProductDependencies = (
-				F2C69E1C2F9CBB7500B80427 /* AppAttestKit */,
+				F2C69E302F9CC25800B80427 /* AppAttestKit */,
 			);
 			productName = AppAttestDemo;
 			productReference = F2F5FDEF2F9B320F00F5071A /* AppAttestDemo.app */;
@@ -202,7 +202,7 @@
 			mainGroup = F2F5FDE62F9B320F00F5071A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				F2C69E1A2F9CBB7500B80427 /* XCLocalSwiftPackageReference "../../../AppAttestKit" */,
+				F2C69E2F2F9CC25800B80427 /* XCLocalSwiftPackageReference "../.." */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F2F5FDF02F9B320F00F5071A /* Products */;
@@ -591,16 +591,16 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		F2C69E1A2F9CBB7500B80427 /* XCLocalSwiftPackageReference "../../../AppAttestKit" */ = {
+		F2C69E2F2F9CC25800B80427 /* XCLocalSwiftPackageReference "../.." */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../../AppAttestKit;
+			relativePath = ../..;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		F2C69E1C2F9CBB7500B80427 /* AppAttestKit */ = {
+		F2C69E302F9CC25800B80427 /* AppAttestKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = F2C69E1A2F9CBB7500B80427 /* XCLocalSwiftPackageReference "../../../AppAttestKit" */;
+			package = F2C69E2F2F9CC25800B80427 /* XCLocalSwiftPackageReference "../.." */;
 			productName = AppAttestKit;
 		};
 /* End XCSwiftPackageProductDependency section */

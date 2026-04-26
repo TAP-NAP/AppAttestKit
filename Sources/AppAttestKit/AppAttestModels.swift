@@ -338,6 +338,8 @@ public nonisolated struct AppAttestAssertionRecord: Encodable, Hashable, Sendabl
 
 public nonisolated extension JSONEncoder {
     static var appAttestCanonical: JSONEncoder {
+        // Return a fresh encoder because JSONEncoder is mutable and should not
+        // be shared across concurrent callers.
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         encoder.dateEncodingStrategy = .iso8601

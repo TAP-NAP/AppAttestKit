@@ -61,6 +61,10 @@ try envelope.applyHeaders(to: &request)
 No request is protected automatically. The caller chooses the protected API,
 generates an assertion envelope, and applies the returned headers.
 
+Assertion generation requires a fresh backend challenge. If the backend returns
+an expired challenge, AppAttestKit throws `AppAttestError.challengeRejected`
+before calling `DCAppAttestService.generateAssertion`.
+
 ## Status And Reset
 
 ```swift
@@ -70,6 +74,10 @@ try await appAttest.reset(credentialName: credentialName)
 
 `reset` deletes local metadata for that credential name only. It does not delete
 metadata for any other credential name.
+
+If the backend returns `revoked`, AppAttestKit persists `.revoked` to local
+credential metadata. This local state avoids known-bad assertion attempts, but
+the server remains the authority.
 
 ## Demo Button Mapping
 

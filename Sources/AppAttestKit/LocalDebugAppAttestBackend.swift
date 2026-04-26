@@ -11,30 +11,37 @@ import Foundation
 ///
 /// This does not perform production-grade attestation or assertion validation.
 public actor LocalDebugAppAttestBackend: AppAttestBackend {
-    public static let fixedChallengeString = "nearbycommunity"
+    public static let defaultChallengeString = "nearbycommunity0123"
+    public static let fixedChallengeString = defaultChallengeString
+    public static let challengeLifetime: TimeInterval = 24 * 60 * 60
+
+    public let challengeString: String
 
     private var challenges: [AppAttestDebugChallengeRecord] = []
     private var registrations: [AppAttestDebugRegistrationRecord] = []
     private var assertions: [AppAttestDebugAssertionRecord] = []
 
-    public init() {}
+    public init(challengeString: String = LocalDebugAppAttestBackend.defaultChallengeString) {
+        self.challengeString = challengeString
+    }
 
     public func requestChallenge(_ request: AppAttestChallengeRequest) async throws -> AppAttestChallenge {
-        let challenge = Data(Self.fixedChallengeString.utf8)
+        let challenge = Data(challengeString.utf8)
+        let expiresAt = Date().addingTimeInterval(Self.challengeLifetime)
         let record = AppAttestDebugChallengeRecord(
-            challengeId: Self.fixedChallengeString,
+            challengeId: challengeString,
             challenge: challenge,
             purpose: request.purpose,
             credentialName: request.credentialName,
-            expiresAt: nil,
+            expiresAt: expiresAt,
             createdAt: Date()
         )
         challenges.append(record)
 
         return AppAttestChallenge(
-            challengeId: Self.fixedChallengeString,
+            challengeId: challengeString,
             challenge: challenge,
-            expiresAt: nil
+            expiresAt: expiresAt
         )
     }
 
@@ -101,6 +108,29 @@ public actor LocalDebugAppAttestBackend: AppAttestBackend {
         try latestAttestationObject().appAttestBase64URL
     }
 
+    /// Returns the most recent raw assertion object produced by
+    /// `DCAppAttestService.generateAssertion`.
+    public func latestAssertionObject() throws -> Data {
+        guard let assertion = assertions.last else {
+            throw AppAttestDebugExportError.noAssertionObject
+        }
+        return assertion.assertionObject
+    }
+
+    /// Returns the most recent raw assertion object as base64url.
+    public func latestAssertionObjectBase64URL() throws -> String {
+        try latestAssertionObject().appAttestBase64URL
+    }
+
+    /// Returns the most recent canonical request-binding bytes used to compute
+    /// the `clientDataHash` passed into `DCAppAttestService.generateAssertion`.
+    public func latestAssertionClientData() throws -> Data {
+        guard let assertion = assertions.last else {
+            throw AppAttestDebugExportError.noAssertionObject
+        }
+        return try assertion.requestBinding.canonicalData()
+    }
+
     /// Returns the most recent challenge issued by this local debug backend.
     public func latestChallenge() throws -> AppAttestDebugChallengeRecord {
         guard let challenge = challenges.last else {
@@ -113,6 +143,7 @@ public actor LocalDebugAppAttestBackend: AppAttestBackend {
 public nonisolated enum AppAttestDebugExportError: Error, LocalizedError, Sendable {
     case noChallenge
     case noAttestationObject
+    case noAssertionObject
 
     public var errorDescription: String? {
         switch self {
@@ -120,6 +151,8 @@ public nonisolated enum AppAttestDebugExportError: Error, LocalizedError, Sendab
             return "No challenge has been generated yet. Run Prepare Credential first."
         case .noAttestationObject:
             return "No attestationObject has been generated yet. Run attestation first."
+        case .noAssertionObject:
+            return "No assertionObject has been generated yet. Run Sign Protected Request first."
         }
     }
 }

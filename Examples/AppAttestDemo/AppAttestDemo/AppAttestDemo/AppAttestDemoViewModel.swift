@@ -30,7 +30,10 @@ enum AppAttestDemoBackendMode: String, CaseIterable, Identifiable {
 @MainActor
 final class AppAttestDemoViewModel: ObservableObject {
     @Published var selectedBackendMode: AppAttestDemoBackendMode
-    @Published var httpBaseURL = "https://example.com"
+    @Published var httpBaseURL = AppAttestRuntimeDefaults.httpBaseURLText
+    #if DEBUG
+    @Published var localChallenge = LocalDebugAppAttestBackend.defaultChallengeString
+    #endif
     @Published var credentialName = "installation_keyid"
     @Published var requestMethod = "POST"
     @Published var requestPath = "/api/protected/demo"
@@ -38,8 +41,9 @@ final class AppAttestDemoViewModel: ObservableObject {
     @Published var statusText = "Step 1: enter a credential name.\nStep 2: prepare the credential.\nStep 3: sign one protected request."
     @Published var headersText = ""
     @Published var debugJSON = ""
-    @Published var attestationObjectDocument: AppAttestCBORDocument?
-    @Published var isAttestationExporterPresented = false
+    @Published var exportDocument: AppAttestCBORDocument?
+    @Published var exportFilename = ""
+    @Published var isExporterPresented = false
     @Published private(set) var isWorking = false
     @Published private(set) var backendDescription: String
 
@@ -56,6 +60,9 @@ final class AppAttestDemoViewModel: ObservableObject {
         #if DEBUG
         self.debugBackend = runtime.debugBackend
         self.selectedBackendMode = runtime.debugBackend == nil ? .http : .localDebug
+        if case .some(.localDebug(let challenge)) = runtime.mode {
+            self.localChallenge = challenge
+        }
         #else
         self.selectedBackendMode = .http
         #endif
@@ -91,7 +98,7 @@ final class AppAttestDemoViewModel: ObservableObject {
             switch selectedBackendMode {
             #if DEBUG
             case .localDebug:
-                mode = .localDebug
+                mode = .localDebug(challenge: try cleanedLocalChallenge())
             #endif
             case .http:
                 guard let baseURL = URL(string: httpBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) else {
@@ -207,12 +214,13 @@ final class AppAttestDemoViewModel: ObservableObject {
         #endif
     }
 
-    func handleAttestationObjectExportResult(_ result: Result<URL, any Error>) {
+    func handleExportResult(_ result: Result<URL, any Error>) {
+        let filename = exportFilename
         switch result {
         case .success(let url):
-            statusText = "Saved attestationObject.cbor\n\(url.lastPathComponent)"
+            statusText = "Saved \(filename)\n\(url.lastPathComponent)"
         case .failure(let error):
-            statusText = "Save attestationObject.cbor failed\n\(error.localizedDescription)"
+            statusText = "Save \(filename) failed\n\(error.localizedDescription)"
         }
     }
 
@@ -225,9 +233,44 @@ final class AppAttestDemoViewModel: ObservableObject {
 
         runOperation("Prepare attestationObject file") {
             let data = try await debugBackend.latestAttestationObject()
-            self.attestationObjectDocument = AppAttestCBORDocument(data: data)
-            self.isAttestationExporterPresented = true
+            self.exportDocument = AppAttestCBORDocument(data: data)
+            self.exportFilename = "attestationObject.cbor"
+            self.isExporterPresented = true
             self.statusText = "Choose where to save attestationObject.cbor."
+        }
+        #endif
+    }
+
+    func saveAssertionObject() {
+        #if DEBUG
+        guard let debugBackend else {
+            statusText = "No DEBUG local backend is active."
+            return
+        }
+
+        runOperation("Prepare assertionObject file") {
+            let data = try await debugBackend.latestAssertionObject()
+            self.exportDocument = AppAttestCBORDocument(data: data)
+            self.exportFilename = "assertionObject.cbor"
+            self.isExporterPresented = true
+            self.statusText = "Choose where to save assertionObject.cbor."
+        }
+        #endif
+    }
+
+    func saveAssertionClientData() {
+        #if DEBUG
+        guard let debugBackend else {
+            statusText = "No DEBUG local backend is active."
+            return
+        }
+
+        runOperation("Prepare assertion client data file") {
+            let data = try await debugBackend.latestAssertionClientData()
+            self.exportDocument = AppAttestCBORDocument(data: data)
+            self.exportFilename = "assertionClientData.bin"
+            self.isExporterPresented = true
+            self.statusText = "Choose where to save assertionClientData.bin."
         }
         #endif
     }
@@ -247,6 +290,19 @@ final class AppAttestDemoViewModel: ObservableObject {
         }
         return path.hasPrefix("/") ? path : "/\(path)"
     }
+
+    #if DEBUG
+    private func cleanedLocalChallenge() throws -> String {
+        let challenge = localChallenge.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !challenge.isEmpty else {
+            throw AppAttestError.invalidConfiguration("Local challenge cannot be empty.")
+        }
+        guard Data(challenge.utf8).count >= 16 else {
+            throw AppAttestError.invalidConfiguration("Local challenge must be at least 16 bytes.")
+        }
+        return challenge
+    }
+    #endif
 
     private func demoURL(path: String) -> URL {
         var components = URLComponents()
@@ -294,11 +350,11 @@ final class AppAttestDemoViewModel: ObservableObject {
     }
 
     private func runOperation(_ label: String, operation: @escaping () async throws -> Void) {
-        activeOperationCount += 1
-        isWorking = activeOperationCount > 0
-        setResult("\(label)...")
+        Task { @MainActor in
+            activeOperationCount += 1
+            isWorking = activeOperationCount > 0
+            setResult("\(label)...")
 
-        Task {
             defer {
                 activeOperationCount -= 1
                 isWorking = activeOperationCount > 0

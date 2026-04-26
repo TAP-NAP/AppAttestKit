@@ -38,6 +38,14 @@ struct AppAttestDemoView: View {
                                 .keyboardType(.URL)
                         }
 
+                        #if DEBUG
+                        if viewModel.selectedBackendMode == .localDebug {
+                            TextField("Local challenge", text: $viewModel.localChallenge)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        #endif
+
                         Button {
                             viewModel.applyBackendSelection()
                         } label: {
@@ -126,6 +134,20 @@ struct AppAttestDemoView: View {
                             .disabled(viewModel.isWorking)
 
                             Button {
+                                viewModel.saveAssertionObject()
+                            } label: {
+                                Label("Save Assertion CBOR", systemImage: "square.and.arrow.down.on.square")
+                            }
+                            .disabled(viewModel.isWorking)
+
+                            Button {
+                                viewModel.saveAssertionClientData()
+                            } label: {
+                                Label("Save Assertion Client Data", systemImage: "number")
+                            }
+                            .disabled(viewModel.isWorking)
+
+                            Button {
                                 viewModel.exportDebugJSON()
                             } label: {
                                 Label("Export JSON", systemImage: "doc.text")
@@ -149,12 +171,12 @@ struct AppAttestDemoView: View {
             .navigationTitle("App Attest")
             .navigationBarTitleDisplayMode(.inline)
             .fileExporter(
-                isPresented: $viewModel.isAttestationExporterPresented,
-                document: viewModel.attestationObjectDocument,
+                isPresented: $viewModel.isExporterPresented,
+                document: viewModel.exportDocument,
                 contentType: .data,
-                defaultFilename: "attestationObject.cbor"
+                defaultFilename: viewModel.exportFilename
             ) { result in
-                viewModel.handleAttestationObjectExportResult(result)
+                viewModel.handleExportResult(result)
             }
         }
     }
