@@ -38,8 +38,9 @@ final class AppAttestDemoViewModel: ObservableObject {
     @Published var statusText = "Step 1: enter a credential name.\nStep 2: prepare the credential.\nStep 3: sign one protected request."
     @Published var headersText = ""
     @Published var debugJSON = ""
-    @Published var attestationObjectDocument: AppAttestCBORDocument?
-    @Published var isAttestationExporterPresented = false
+    @Published var exportDocument: AppAttestCBORDocument?
+    @Published var exportFilename = ""
+    @Published var isExporterPresented = false
     @Published private(set) var isWorking = false
     @Published private(set) var backendDescription: String
 
@@ -207,12 +208,13 @@ final class AppAttestDemoViewModel: ObservableObject {
         #endif
     }
 
-    func handleAttestationObjectExportResult(_ result: Result<URL, any Error>) {
+    func handleExportResult(_ result: Result<URL, any Error>) {
+        let filename = exportFilename
         switch result {
         case .success(let url):
-            statusText = "Saved attestationObject.cbor\n\(url.lastPathComponent)"
+            statusText = "Saved \(filename)\n\(url.lastPathComponent)"
         case .failure(let error):
-            statusText = "Save attestationObject.cbor failed\n\(error.localizedDescription)"
+            statusText = "Save \(filename) failed\n\(error.localizedDescription)"
         }
     }
 
@@ -225,9 +227,44 @@ final class AppAttestDemoViewModel: ObservableObject {
 
         runOperation("Prepare attestationObject file") {
             let data = try await debugBackend.latestAttestationObject()
-            self.attestationObjectDocument = AppAttestCBORDocument(data: data)
-            self.isAttestationExporterPresented = true
+            self.exportDocument = AppAttestCBORDocument(data: data)
+            self.exportFilename = "attestationObject.cbor"
+            self.isExporterPresented = true
             self.statusText = "Choose where to save attestationObject.cbor."
+        }
+        #endif
+    }
+
+    func saveAssertionObject() {
+        #if DEBUG
+        guard let debugBackend else {
+            statusText = "No DEBUG local backend is active."
+            return
+        }
+
+        runOperation("Prepare assertionObject file") {
+            let data = try await debugBackend.latestAssertionObject()
+            self.exportDocument = AppAttestCBORDocument(data: data)
+            self.exportFilename = "assertionObject.cbor"
+            self.isExporterPresented = true
+            self.statusText = "Choose where to save assertionObject.cbor."
+        }
+        #endif
+    }
+
+    func saveAssertionClientData() {
+        #if DEBUG
+        guard let debugBackend else {
+            statusText = "No DEBUG local backend is active."
+            return
+        }
+
+        runOperation("Prepare assertion client data file") {
+            let data = try await debugBackend.latestAssertionClientData()
+            self.exportDocument = AppAttestCBORDocument(data: data)
+            self.exportFilename = "assertionClientData.bin"
+            self.isExporterPresented = true
+            self.statusText = "Choose where to save assertionClientData.bin."
         }
         #endif
     }

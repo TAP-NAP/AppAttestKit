@@ -103,6 +103,29 @@ public actor LocalDebugAppAttestBackend: AppAttestBackend {
         try latestAttestationObject().appAttestBase64URL
     }
 
+    /// Returns the most recent raw assertion object produced by
+    /// `DCAppAttestService.generateAssertion`.
+    public func latestAssertionObject() throws -> Data {
+        guard let assertion = assertions.last else {
+            throw AppAttestDebugExportError.noAssertionObject
+        }
+        return assertion.assertionObject
+    }
+
+    /// Returns the most recent raw assertion object as base64url.
+    public func latestAssertionObjectBase64URL() throws -> String {
+        try latestAssertionObject().appAttestBase64URL
+    }
+
+    /// Returns the most recent canonical request-binding bytes used to compute
+    /// the `clientDataHash` passed into `DCAppAttestService.generateAssertion`.
+    public func latestAssertionClientData() throws -> Data {
+        guard let assertion = assertions.last else {
+            throw AppAttestDebugExportError.noAssertionObject
+        }
+        return try assertion.requestBinding.canonicalData()
+    }
+
     /// Returns the most recent challenge issued by this local debug backend.
     public func latestChallenge() throws -> AppAttestDebugChallengeRecord {
         guard let challenge = challenges.last else {
@@ -115,6 +138,7 @@ public actor LocalDebugAppAttestBackend: AppAttestBackend {
 public nonisolated enum AppAttestDebugExportError: Error, LocalizedError, Sendable {
     case noChallenge
     case noAttestationObject
+    case noAssertionObject
 
     public var errorDescription: String? {
         switch self {
@@ -122,6 +146,8 @@ public nonisolated enum AppAttestDebugExportError: Error, LocalizedError, Sendab
             return "No challenge has been generated yet. Run Prepare Credential first."
         case .noAttestationObject:
             return "No attestationObject has been generated yet. Run attestation first."
+        case .noAssertionObject:
+            return "No assertionObject has been generated yet. Run Sign Protected Request first."
         }
     }
 }

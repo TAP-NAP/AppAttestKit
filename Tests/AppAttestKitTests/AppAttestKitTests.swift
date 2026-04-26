@@ -502,6 +502,24 @@ struct AppAttestKitTests {
         #expect(json.contains("debug-key"))
         #expect(json.contains("credentialName"))
         #expect(try await backend.latestAttestationObject() == Data("attestation".utf8))
+        #expect(try await backend.latestAssertionObject() == Data("assertion".utf8))
+        #expect(try await backend.latestAssertionObjectBase64URL() == Data("assertion".utf8).appAttestBase64URL)
+        let expectedClientData = try AppAttestProtectedRequest(
+            method: "GET",
+            path: "/debug"
+        ).binding(challenge: challenge.challenge).canonicalData()
+        #expect(try await backend.latestAssertionClientData() == expectedClientData)
+    }
+
+    @Test func localDebugBackendRejectsAssertionObjectExportBeforeAssertion() async throws {
+        let backend = LocalDebugAppAttestBackend()
+
+        do {
+            _ = try await backend.latestAssertionObject()
+            Issue.record("Expected missing assertionObject export to fail.")
+        } catch AppAttestDebugExportError.noAssertionObject {
+            return
+        }
     }
     #endif
 }
