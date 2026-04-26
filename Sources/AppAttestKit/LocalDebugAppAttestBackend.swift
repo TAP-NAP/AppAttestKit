@@ -12,7 +12,6 @@ import Foundation
 /// This does not perform production-grade attestation or assertion validation.
 public actor LocalDebugAppAttestBackend: AppAttestBackend {
     public static let defaultChallengeString = "nearbycommunity0123"
-    public static let fixedChallengeString = defaultChallengeString
     public static let challengeLifetime: TimeInterval = 24 * 60 * 60
 
     public let challengeString: String

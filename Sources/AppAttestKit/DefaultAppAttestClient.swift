@@ -142,9 +142,7 @@ public actor DefaultAppAttestClient: AppAttestClient {
         }
 
         guard credential.status == .ready else {
-            throw AppAttestError.invalidConfiguration(
-                "No ready App Attest credential exists for \(credentialName). Run prepareIfNeeded first."
-            )
+            throw AppAttestError.credentialNotReady(credentialName)
         }
 
         await reportProgress("backend.requestChallenge(purpose: assertion)")
