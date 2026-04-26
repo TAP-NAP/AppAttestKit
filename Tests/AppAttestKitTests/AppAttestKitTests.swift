@@ -192,8 +192,8 @@ struct AppAttestKitTests {
                 request: AppAttestProtectedRequest(method: "POST", path: "/api/protected")
             )
             Issue.record("Expected revoked credential to fail before assertion.")
-        } catch AppAttestError.invalidConfiguration(let message) {
-            #expect(message.contains("No ready App Attest credential"))
+        } catch AppAttestError.credentialNotReady(let credentialName) {
+            #expect(credentialName == "revoked_credential")
         }
 
         #expect(await backend.challengeRequests.isEmpty)
