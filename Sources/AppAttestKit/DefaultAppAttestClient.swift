@@ -8,10 +8,13 @@ import Foundation
 
 /// Default implementation of the reusable App Attest client.
 public actor DefaultAppAttestClient: AppAttestClient {
+    private static let minimumChallengeByteCount = 16
+
     private let backend: AppAttestBackend
     private let credentialStore: AppAttestCredentialStore
     private let deviceService: AppAttestDeviceService
     private let environment: AppAttestEnvironment
+    private var prepareTasks: [String: Task<AppAttestCredential, Error>] = [:]
     #if DEBUG
     private let progressHandler: (@MainActor @Sendable (String) async -> Void)?
     #endif
@@ -103,7 +106,24 @@ public actor DefaultAppAttestClient: AppAttestClient {
         }
 
         await reportProgress("no ready credential, run prepare")
-        return try await prepare(credentialName: credentialName)
+        if let task = prepareTasks[credentialName] {
+            await reportProgress("reuse in-flight prepare")
+            return try await task.value
+        }
+
+        let task = Task {
+            try await self.prepare(credentialName: credentialName)
+        }
+        prepareTasks[credentialName] = task
+
+        do {
+            let credential = try await task.value
+            prepareTasks.removeValue(forKey: credentialName)
+            return credential
+        } catch {
+            prepareTasks.removeValue(forKey: credentialName)
+            throw error
+        }
     }
 
     public func generateAssertion(
@@ -179,13 +199,21 @@ public actor DefaultAppAttestClient: AppAttestClient {
         case .accepted:
             return .ready
         case .revoked:
+            guard let currentCredential = try await credentialStore.credential(named: credentialName) else {
+                return .notPrepared
+            }
+            guard currentCredential.keyId == credential.keyId,
+                  currentCredential.credentialId == credential.credentialId else {
+                return currentCredential.status
+            }
+
             let revokedCredential = AppAttestCredential(
-                credentialName: credential.credentialName,
-                keyId: credential.keyId,
-                credentialId: credential.credentialId,
+                credentialName: currentCredential.credentialName,
+                keyId: currentCredential.keyId,
+                credentialId: currentCredential.credentialId,
                 status: .revoked,
-                environment: credential.environment,
-                createdAt: credential.createdAt,
+                environment: currentCredential.environment,
+                createdAt: currentCredential.createdAt,
                 updatedAt: Date()
             )
             try await credentialStore.save(revokedCredential)
@@ -210,6 +238,12 @@ public actor DefaultAppAttestClient: AppAttestClient {
     }
 
     private static func validateChallenge(_ challenge: AppAttestChallenge, purpose: AppAttestPurpose) throws {
+        guard challenge.challenge.count >= minimumChallengeByteCount else {
+            throw AppAttestError.challengeRejected(
+                "\(purpose.rawValue) challenge \(challenge.challengeId) is too short (\(challenge.challenge.count) bytes)."
+            )
+        }
+
         guard let expiresAt = challenge.expiresAt else {
             return
         }

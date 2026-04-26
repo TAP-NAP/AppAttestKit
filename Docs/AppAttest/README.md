@@ -45,7 +45,7 @@ business rules.
 ## Server Wire Format
 
 Backend challenge responses use base64url challenge bytes and ISO 8601 UTC
-expiration times:
+expiration times. Decoded challenge bytes must be at least 16 bytes:
 
 ```json
 {
@@ -63,6 +63,12 @@ accepted for assertions. It does not make an untrusted device trustworthy again.
 
 - Key Rotation: consider a future explicit `rotationRequired` or `expired`
   status so routine renewal is not conflated with security revocation.
+- Registration rollback or idempotent registration for Keychain-save failures
+  after server-side attestation acceptance.
+- Assertion confirmation semantics so generated assertions are not confused
+  with protected requests that were actually sent and validated.
+- Versioned request binding with body-presence metadata if a backend needs to
+  distinguish `nil` body from an explicit empty body.
 
 ## Primary Documents
 

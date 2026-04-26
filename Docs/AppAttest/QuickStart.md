@@ -57,5 +57,6 @@ try envelope.applyHeaders(to: &request)
 The app never needs to persist Apple `keyId` itself. AppAttestKit stores
 credential metadata in Keychain and reuses it by `credentialName`.
 
-The backend challenge response must provide base64url challenge bytes and should
-include an ISO 8601 UTC `expiresAt`, for example `2026-04-25T09:30:00Z`.
+The backend challenge response must provide at least 16 decoded bytes of
+base64url challenge data and should include an ISO 8601 UTC `expiresAt`, for
+example `2026-04-25T09:30:00Z`.

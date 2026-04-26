@@ -83,7 +83,11 @@ enum AppAttestRuntimeFactory {
         }
     }
     #else
-    static func make(mode: AppAttestBackendMode = AppAttestRuntimeDefaults.mode) throws -> AppAttestRuntime {
+    static func make() throws -> AppAttestRuntime {
+        try make(mode: AppAttestRuntimeDefaults.defaultMode())
+    }
+
+    static func make(mode: AppAttestBackendMode) throws -> AppAttestRuntime {
         switch mode {
         case .http(let baseURL):
             let backend = try HTTPAppAttestBackend(baseURL: baseURL)
@@ -122,13 +126,43 @@ enum AppAttestRuntimeFactory {
 }
 
 enum AppAttestRuntimeDefaults {
-    static var mode: AppAttestBackendMode {
+    static var httpBaseURLText: String {
         #if DEBUG
-        .localDebug
+        "https://example.com"
         #else
-        .http(baseURL: URL(string: "https://example.com")!)
+        configuredProductionBackendURL?.absoluteString ?? ""
         #endif
     }
+
+    #if DEBUG
+    static var mode: AppAttestBackendMode {
+        .localDebug
+    }
+    #else
+    static func defaultMode() throws -> AppAttestBackendMode {
+        guard let url = configuredProductionBackendURL else {
+            throw AppAttestError.invalidConfiguration(
+                "Set APP_ATTEST_BACKEND_URL in the app Info.plist before using App Attest in Release."
+            )
+        }
+        return .http(baseURL: url)
+    }
+
+    private static var configuredProductionBackendURL: URL? {
+        guard let rawValue = Bundle.main.object(forInfoDictionaryKey: "APP_ATTEST_BACKEND_URL") as? String else {
+            return nil
+        }
+
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty,
+              !trimmedValue.contains("$("),
+              let url = URL(string: trimmedValue),
+              url.scheme?.lowercased() == "https" else {
+            return nil
+        }
+        return url
+    }
+    #endif
 }
 
 private actor UnavailableAppAttestClient: AppAttestClient {

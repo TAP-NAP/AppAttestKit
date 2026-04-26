@@ -106,7 +106,7 @@ Wire format:
 - `challenge`, `attestationObject`, and `assertionObject` are base64url without padding.
 - `expiresAt` is an ISO 8601 UTC timestamp parseable by Swift `.iso8601`, for example `2026-04-25T09:30:00Z`.
 - `challengeId` is server state. It identifies the challenge record and should be single-use.
-- `challenge` is random byte data. The client hashes it into Apple App Attest calls.
+- `challenge` is random byte data. The client hashes it into Apple App Attest calls and rejects challenges shorter than 16 decoded bytes.
 
 Assertion headers applied by `AppAttestAssertionEnvelope.applyHeaders(to:)`:
 
@@ -135,15 +135,20 @@ The client-side revoked status is only a local cache that avoids known-bad work.
 ## Local Debug
 
 `LocalDebugAppAttestBackend` exists only in DEBUG builds. It uses the fixed
-challenge id and challenge string `nearbycommunity`, accepts local registrations,
+challenge id and challenge string `nearbycommunity0123`, accepts local registrations,
 and exports generated objects for inspection.
 
 Local debug challenges use a long expiration time, currently 24 hours, so manual
 testing and export flows do not fail due to short-lived challenge expiry.
 Production servers should still issue short-lived, single-use challenges.
 
-Release builds cannot use the local debug backend and reject HTTP backend hosts
-that resolve to localhost, IPv4 `127.0.0.0/8`, IPv6 loopback, or `.local`.
+Release builds cannot use the local debug backend and require HTTPS HTTP
+backends. They also reject hosts that resolve to localhost, IPv4
+`127.0.0.0/8`, IPv6 loopback, or `.local`.
+
+The example app does not ship a Release default backend URL. Configure
+`APP_ATTEST_BACKEND_URL` in the app Info.plist or build settings before using a
+Release build against a real server.
 
 ## Documentation
 
@@ -158,3 +163,11 @@ that resolve to localhost, IPv4 `127.0.0.0/8`, IPv6 loopback, or `.local`.
 
 - Key Rotation: consider a future explicit `rotationRequired` or `expired`
   server status so routine key renewal is not conflated with security revocation.
+- Registration rollback or idempotent registration: define how a backend should
+  recover if it accepts attestation but the client cannot save Keychain metadata.
+- Assertion confirmation: decide whether to replace `recordAssertionResult`
+  with an explicit post-request confirmation API, or keep it documented as a
+  debug/observability hook.
+- Request body presence: consider a versioned request-binding format that
+  distinguishes `nil` body from an explicit empty body when servers need that
+  semantic difference.

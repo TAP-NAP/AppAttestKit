@@ -12,7 +12,7 @@ Source links:
 available. It uses the fixed challenge string and challenge id:
 
 ```text
-nearbycommunity
+nearbycommunity0123
 ```
 
 It records locally generated challenges, registrations, and assertions so the

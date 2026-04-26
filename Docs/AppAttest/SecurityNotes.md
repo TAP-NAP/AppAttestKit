@@ -38,7 +38,7 @@ must run attestation again.
 Production challenges must come from the backend, be short-lived, and be
 single-use. The backend must bind each challenge to purpose and credential
 name. Challenge bytes are sent to the client as base64url without padding, and
-`expiresAt` should be an ISO 8601 UTC timestamp such as
+must decode to at least 16 bytes. `expiresAt` should be an ISO 8601 UTC timestamp such as
 `2026-04-25T09:30:00Z`.
 
 Assertions bind the challenge to method, path, sorted query items, body hash,
@@ -58,6 +58,20 @@ repair.
 
 Routine key renewal is a different policy concern. Track it as Key Rotation;
 future versions may add a dedicated `rotationRequired` or `expired` state.
+
+## Known Design Follow-Ups
+
+If server registration succeeds but Keychain metadata saving fails, the current
+contract cannot roll back the server-side credential. Future backend contracts
+should support idempotent registration or explicit cleanup.
+
+`recordAssertionResult` is not proof that the protected request was delivered.
+Treat it as observability/debug data; production authorization should be logged
+when the protected endpoint validates the assertion.
+
+The current request binding hashes `nil` body and empty body the same way. Apps
+whose server semantics distinguish those cases should adopt a versioned binding
+format before adding body-presence metadata.
 
 ## Unsupported Devices
 

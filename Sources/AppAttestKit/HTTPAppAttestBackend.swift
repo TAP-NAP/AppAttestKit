@@ -22,6 +22,8 @@ public nonisolated struct HTTPAppAttestBackendPaths: Hashable {
 }
 
 /// HTTP implementation of the App Attest backend boundary.
+// SAFETY: This value type stores immutable configuration. `URLSession` is safe
+// to share, and callers must not mutate injected encoders/decoders after init.
 public nonisolated struct HTTPAppAttestBackend: AppAttestBackend, @unchecked Sendable {
     public typealias HeadersProvider = @Sendable () async throws -> [String: String]
 
@@ -41,9 +43,9 @@ public nonisolated struct HTTPAppAttestBackend: AppAttestBackend, @unchecked Sen
         decoder: JSONDecoder = .appAttestDefault
     ) throws {
         #if !DEBUG
-        if Self.isForbiddenReleaseHost(baseURL) {
+        if Self.isForbiddenReleaseBackend(baseURL) {
             throw AppAttestError.releaseLocalBackendForbidden(
-                "Release builds cannot use localhost, loopback, or .local App Attest backends."
+                "Release builds require an HTTPS App Attest backend and cannot use localhost, loopback, or .local hosts."
             )
         }
         #endif
@@ -69,6 +71,10 @@ public nonisolated struct HTTPAppAttestBackend: AppAttestBackend, @unchecked Sen
     }
 
     public func recordAssertionResult(_ record: AppAttestAssertionRecord) async {}
+
+    public static func isForbiddenReleaseBackend(_ url: URL) -> Bool {
+        url.scheme?.lowercased() != "https" || isForbiddenReleaseHost(url)
+    }
 
     public static func isForbiddenReleaseHost(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else {

@@ -10,6 +10,8 @@ import Security
 ///
 /// This stores `credentialName -> keyId` and related metadata. It does not
 /// store App Attest private key material; Apple manages that key material.
+// SAFETY: The store keeps only immutable configuration. Keychain operations are
+// system calls, and callers must not mutate injected encoders/decoders after init.
 public nonisolated struct KeychainAppAttestCredentialStore: AppAttestCredentialStore, @unchecked Sendable {
     private let service: String
     private let encoder: JSONEncoder

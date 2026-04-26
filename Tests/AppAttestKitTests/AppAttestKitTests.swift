@@ -58,6 +58,28 @@ struct AppAttestKitTests {
         #expect(await backend.challengeRequests.isEmpty)
     }
 
+    @Test func prepareIfNeededCoalescesConcurrentCallsForSameCredentialName() async throws {
+        let store = InMemoryCredentialStore()
+        let backend = MockAppAttestBackend(challengeDelayNanos: 50_000_000)
+        let deviceService = MockAppAttestDeviceService()
+        let client = DefaultAppAttestClient(
+            backend: backend,
+            credentialStore: store,
+            deviceService: deviceService,
+            environment: .development
+        )
+
+        async let first = client.prepareIfNeeded(credentialName: "installation_keyid")
+        async let second = client.prepareIfNeeded(credentialName: "installation_keyid")
+        let credentials = try await [first, second]
+
+        #expect(credentials[0].keyId == credentials[1].keyId)
+        #expect(await backend.challengeRequests.map(\.purpose) == [.attestation])
+        #expect(await backend.registrationRequests.count == 1)
+        #expect(deviceService.generateKeyCount == 1)
+    }
+
+
     @Test func resetOnlyDeletesSelectedCredentialName() async throws {
         let now = Date()
         let store = InMemoryCredentialStore()
@@ -228,6 +250,52 @@ struct AppAttestKitTests {
         #expect(stored?.updatedAt != now)
     }
 
+    @Test func statusDoesNotOverwriteCredentialReplacedWhileCheckingServer() async throws {
+        let store = InMemoryCredentialStore()
+        let now = Date()
+        try await store.save(
+            AppAttestCredential(
+                credentialName: "primary_credential",
+                keyId: "old-key",
+                credentialId: "server-old-key",
+                status: .ready,
+                environment: .development,
+                createdAt: now,
+                updatedAt: now
+            )
+        )
+
+        let replacement = AppAttestCredential(
+            credentialName: "primary_credential",
+            keyId: "new-key",
+            credentialId: "server-new-key",
+            status: .ready,
+            environment: .development,
+            createdAt: now,
+            updatedAt: now
+        )
+        let backend = MockAppAttestBackend(
+            serverCredentialStatus: .revoked,
+            credentialStatusHook: {
+                try await store.save(replacement)
+            }
+        )
+        let client = DefaultAppAttestClient(
+            backend: backend,
+            credentialStore: store,
+            deviceService: MockAppAttestDeviceService(),
+            environment: .development
+        )
+
+        let status = try await client.status(credentialName: "primary_credential")
+        let stored = try await store.credential(named: "primary_credential")
+
+        #expect(status == .ready)
+        #expect(stored?.keyId == "new-key")
+        #expect(stored?.status == .ready)
+    }
+
+
     @Test func prepareRejectsExpiredChallenge() async throws {
         let backend = MockAppAttestBackend(challengeExpiresAt: Date().addingTimeInterval(-1))
         let deviceService = MockAppAttestDeviceService()
@@ -243,6 +311,28 @@ struct AppAttestKitTests {
             Issue.record("Expected expired attestation challenge to fail.")
         } catch AppAttestError.challengeRejected(let message) {
             #expect(message.contains("attestation challenge"))
+        }
+
+        #expect(!deviceService.didGenerateKey)
+        #expect(await backend.registrationRequests.isEmpty)
+    }
+
+    @Test func prepareRejectsShortChallenge() async throws {
+        let backend = MockAppAttestBackend(challenge: Data("short".utf8))
+        let deviceService = MockAppAttestDeviceService()
+        let client = DefaultAppAttestClient(
+            backend: backend,
+            credentialStore: InMemoryCredentialStore(),
+            deviceService: deviceService,
+            environment: .development
+        )
+
+        do {
+            _ = try await client.prepare(credentialName: "installation_keyid")
+            Issue.record("Expected short attestation challenge to fail.")
+        } catch AppAttestError.challengeRejected(let message) {
+            #expect(message.contains("too short"))
+            #expect(message.contains("5 bytes"))
         }
 
         #expect(!deviceService.didGenerateKey)
@@ -288,6 +378,46 @@ struct AppAttestKitTests {
         #expect(await backend.assertionRecords.isEmpty)
     }
 
+    @Test func generateAssertionRejectsShortChallenge() async throws {
+        let store = InMemoryCredentialStore()
+        let now = Date()
+        try await store.save(
+            AppAttestCredential(
+                credentialName: "primary_credential",
+                keyId: "stored-key",
+                credentialId: nil,
+                status: .ready,
+                environment: .development,
+                createdAt: now,
+                updatedAt: now
+            )
+        )
+
+        let backend = MockAppAttestBackend(challenge: Data("tiny".utf8))
+        let deviceService = MockAppAttestDeviceService()
+        let client = DefaultAppAttestClient(
+            backend: backend,
+            credentialStore: store,
+            deviceService: deviceService,
+            environment: .development
+        )
+
+        do {
+            _ = try await client.generateAssertion(
+                credentialName: "primary_credential",
+                request: AppAttestProtectedRequest(method: "POST", path: "/api/protected")
+            )
+            Issue.record("Expected short assertion challenge to fail.")
+        } catch AppAttestError.challengeRejected(let message) {
+            #expect(message.contains("too short"))
+            #expect(message.contains("4 bytes"))
+        }
+
+        #expect(await backend.challengeRequests.map(\.purpose) == [.assertion])
+        #expect(deviceService.assertedKeyId == nil)
+        #expect(await backend.assertionRecords.isEmpty)
+    }
+
     @Test func requestBindingChangesWhenBodyChanges() throws {
         let challenge = Data("challenge".utf8)
         let first = AppAttestProtectedRequest(
@@ -315,6 +445,15 @@ struct AppAttestKitTests {
         #expect(!HTTPAppAttestBackend.isForbiddenReleaseHost(URL(string: "https://api.example.com")!))
     }
 
+    @Test func httpBackendReleaseGuardRequiresHTTPSAndNonLocalHost() {
+        #expect(HTTPAppAttestBackend.isForbiddenReleaseBackend(URL(string: "http://api.example.com")!))
+        #expect(HTTPAppAttestBackend.isForbiddenReleaseBackend(URL(string: "https://localhost:8443")!))
+        #expect(HTTPAppAttestBackend.isForbiddenReleaseBackend(URL(string: "https://127.1.2.3")!))
+        #expect(HTTPAppAttestBackend.isForbiddenReleaseBackend(URL(string: "https://service.local")!))
+        #expect(!HTTPAppAttestBackend.isForbiddenReleaseBackend(URL(string: "https://api.example.com")!))
+    }
+
+
     @Test func httpBackendEndpointJoinsPathsWithoutDoubleEncoding() throws {
         let backend = try HTTPAppAttestBackend(baseURL: URL(string: "https://api.example.com/v1/")!)
 
@@ -330,8 +469,8 @@ struct AppAttestKitTests {
             AppAttestChallengeRequest(purpose: .attestation, credentialName: "installation_keyid")
         )
 
-        #expect(challenge.challengeId == "nearbycommunity")
-        #expect(String(data: challenge.challenge, encoding: .utf8) == "nearbycommunity")
+        #expect(challenge.challengeId == "nearbycommunity0123")
+        #expect(String(data: challenge.challenge, encoding: .utf8) == "nearbycommunity0123")
         #expect((challenge.expiresAt ?? Date()) > Date().addingTimeInterval(60 * 60))
 
         _ = try await backend.registerAttestation(
@@ -387,22 +526,34 @@ private actor MockAppAttestBackend: AppAttestBackend {
     private(set) var challengeRequests: [AppAttestChallengeRequest] = []
     private(set) var registrationRequests: [AppAttestRegistrationRequest] = []
     private(set) var assertionRecords: [AppAttestAssertionRecord] = []
+    private let challenge: Data
     private let challengeExpiresAt: Date?
+    private let challengeDelayNanos: UInt64
     private let serverCredentialStatus: AppAttestServerCredentialStatus
+    private let credentialStatusHook: (@Sendable () async throws -> Void)?
 
     init(
+        challenge: Data = Data("challenge-0000000001".utf8),
         challengeExpiresAt: Date? = Date().addingTimeInterval(300),
-        serverCredentialStatus: AppAttestServerCredentialStatus = .unknown
+        challengeDelayNanos: UInt64 = 0,
+        serverCredentialStatus: AppAttestServerCredentialStatus = .unknown,
+        credentialStatusHook: (@Sendable () async throws -> Void)? = nil
     ) {
+        self.challenge = challenge
         self.challengeExpiresAt = challengeExpiresAt
+        self.challengeDelayNanos = challengeDelayNanos
         self.serverCredentialStatus = serverCredentialStatus
+        self.credentialStatusHook = credentialStatusHook
     }
 
     func requestChallenge(_ request: AppAttestChallengeRequest) async throws -> AppAttestChallenge {
         challengeRequests.append(request)
+        if challengeDelayNanos > 0 {
+            try await Task.sleep(nanoseconds: challengeDelayNanos)
+        }
         return AppAttestChallenge(
             challengeId: "challenge-\(challengeRequests.count)",
-            challenge: Data("challenge-\(challengeRequests.count)".utf8),
+            challenge: challenge,
             expiresAt: challengeExpiresAt
         )
     }
@@ -416,7 +567,8 @@ private actor MockAppAttestBackend: AppAttestBackend {
     }
 
     func credentialStatus(_ request: AppAttestCredentialStatusRequest) async throws -> AppAttestServerCredentialStatus {
-        serverCredentialStatus
+        try await credentialStatusHook?()
+        return serverCredentialStatus
     }
 
     func recordAssertionResult(_ record: AppAttestAssertionRecord) async {
@@ -427,11 +579,13 @@ private actor MockAppAttestBackend: AppAttestBackend {
 private final class MockAppAttestDeviceService: AppAttestDeviceService, @unchecked Sendable {
     var isSupported = true
     private(set) var didGenerateKey = false
+    private(set) var generateKeyCount = 0
     private(set) var attestedKeyId: String?
     private(set) var assertedKeyId: String?
 
     func generateKey() async throws -> String {
         didGenerateKey = true
+        generateKeyCount += 1
         return "mock-key-id"
     }
 

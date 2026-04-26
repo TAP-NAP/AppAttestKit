@@ -30,7 +30,7 @@ enum AppAttestDemoBackendMode: String, CaseIterable, Identifiable {
 @MainActor
 final class AppAttestDemoViewModel: ObservableObject {
     @Published var selectedBackendMode: AppAttestDemoBackendMode
-    @Published var httpBaseURL = "https://example.com"
+    @Published var httpBaseURL = AppAttestRuntimeDefaults.httpBaseURLText
     @Published var credentialName = "installation_keyid"
     @Published var requestMethod = "POST"
     @Published var requestPath = "/api/protected/demo"
@@ -294,11 +294,11 @@ final class AppAttestDemoViewModel: ObservableObject {
     }
 
     private func runOperation(_ label: String, operation: @escaping () async throws -> Void) {
-        activeOperationCount += 1
-        isWorking = activeOperationCount > 0
-        setResult("\(label)...")
+        Task { @MainActor in
+            activeOperationCount += 1
+            isWorking = activeOperationCount > 0
+            setResult("\(label)...")
 
-        Task {
             defer {
                 activeOperationCount -= 1
                 isWorking = activeOperationCount > 0
