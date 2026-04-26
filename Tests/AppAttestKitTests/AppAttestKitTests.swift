@@ -469,8 +469,8 @@ struct AppAttestKitTests {
             AppAttestChallengeRequest(purpose: .attestation, credentialName: "installation_keyid")
         )
 
-        #expect(challenge.challengeId == "nearbycommunity0123")
-        #expect(String(data: challenge.challenge, encoding: .utf8) == "nearbycommunity0123")
+        #expect(challenge.challengeId == LocalDebugAppAttestBackend.defaultChallengeString)
+        #expect(String(data: challenge.challenge, encoding: .utf8) == LocalDebugAppAttestBackend.defaultChallengeString)
         #expect((challenge.expiresAt ?? Date()) > Date().addingTimeInterval(60 * 60))
 
         _ = try await backend.registerAttestation(
@@ -509,6 +509,16 @@ struct AppAttestKitTests {
             path: "/debug"
         ).binding(challenge: challenge.challenge).canonicalData()
         #expect(try await backend.latestAssertionClientData() == expectedClientData)
+    }
+
+    @Test func localDebugBackendUsesCustomChallenge() async throws {
+        let backend = LocalDebugAppAttestBackend(challengeString: "custom-debug-challenge")
+        let challenge = try await backend.requestChallenge(
+            AppAttestChallengeRequest(purpose: .assertion, credentialName: "installation_keyid")
+        )
+
+        #expect(challenge.challengeId == "custom-debug-challenge")
+        #expect(String(data: challenge.challenge, encoding: .utf8) == "custom-debug-challenge")
     }
 
     @Test func localDebugBackendRejectsAssertionObjectExportBeforeAssertion() async throws {

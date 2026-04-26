@@ -31,6 +31,9 @@ enum AppAttestDemoBackendMode: String, CaseIterable, Identifiable {
 final class AppAttestDemoViewModel: ObservableObject {
     @Published var selectedBackendMode: AppAttestDemoBackendMode
     @Published var httpBaseURL = AppAttestRuntimeDefaults.httpBaseURLText
+    #if DEBUG
+    @Published var localChallenge = LocalDebugAppAttestBackend.defaultChallengeString
+    #endif
     @Published var credentialName = "installation_keyid"
     @Published var requestMethod = "POST"
     @Published var requestPath = "/api/protected/demo"
@@ -57,6 +60,9 @@ final class AppAttestDemoViewModel: ObservableObject {
         #if DEBUG
         self.debugBackend = runtime.debugBackend
         self.selectedBackendMode = runtime.debugBackend == nil ? .http : .localDebug
+        if case .some(.localDebug(let challenge)) = runtime.mode {
+            self.localChallenge = challenge
+        }
         #else
         self.selectedBackendMode = .http
         #endif
@@ -92,7 +98,7 @@ final class AppAttestDemoViewModel: ObservableObject {
             switch selectedBackendMode {
             #if DEBUG
             case .localDebug:
-                mode = .localDebug
+                mode = .localDebug(challenge: try cleanedLocalChallenge())
             #endif
             case .http:
                 guard let baseURL = URL(string: httpBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) else {
@@ -284,6 +290,19 @@ final class AppAttestDemoViewModel: ObservableObject {
         }
         return path.hasPrefix("/") ? path : "/\(path)"
     }
+
+    #if DEBUG
+    private func cleanedLocalChallenge() throws -> String {
+        let challenge = localChallenge.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !challenge.isEmpty else {
+            throw AppAttestError.invalidConfiguration("Local challenge cannot be empty.")
+        }
+        guard Data(challenge.utf8).count >= 16 else {
+            throw AppAttestError.invalidConfiguration("Local challenge must be at least 16 bytes.")
+        }
+        return challenge
+    }
+    #endif
 
     private func demoURL(path: String) -> URL {
         var components = URLComponents()

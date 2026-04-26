@@ -9,7 +9,7 @@ import AppAttestKit
 enum AppAttestBackendMode: Hashable {
     case http(baseURL: URL)
     #if DEBUG
-    case localDebug
+    case localDebug(challenge: String)
     #endif
 }
 
@@ -49,8 +49,8 @@ enum AppAttestRuntimeFactory {
         progressHandler: (@MainActor @Sendable (String) async -> Void)? = nil
     ) throws -> AppAttestRuntime {
         switch mode {
-        case .localDebug:
-            let backend = LocalDebugAppAttestBackend()
+        case .localDebug(let challenge):
+            let backend = LocalDebugAppAttestBackend(challengeString: challenge)
             return AppAttestRuntime(
                 mode: mode,
                 client: DefaultAppAttestClient(
@@ -60,7 +60,7 @@ enum AppAttestRuntimeFactory {
                     environment: .development,
                     progressHandler: progressHandler
                 ),
-                backendDescription: "Local Debug Backend",
+                backendDescription: "Local Debug Backend: \(challenge)",
                 debugBackend: backend
             )
 
@@ -136,7 +136,7 @@ enum AppAttestRuntimeDefaults {
 
     #if DEBUG
     static var mode: AppAttestBackendMode {
-        .localDebug
+        .localDebug(challenge: LocalDebugAppAttestBackend.defaultChallengeString)
     }
     #else
     static func defaultMode() throws -> AppAttestBackendMode {

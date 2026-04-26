@@ -38,6 +38,14 @@ struct AppAttestDemoView: View {
                                 .keyboardType(.URL)
                         }
 
+                        #if DEBUG
+                        if viewModel.selectedBackendMode == .localDebug {
+                            TextField("Local challenge", text: $viewModel.localChallenge)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        #endif
+
                         Button {
                             viewModel.applyBackendSelection()
                         } label: {
