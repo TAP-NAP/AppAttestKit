@@ -7,33 +7,8 @@ import Combine
 import Foundation
 import AppAttestKit
 
-enum AppAttestDemoBackendMode: String, CaseIterable, Identifiable {
-    #if DEBUG
-    case localDebug
-    #endif
-    case http
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        #if DEBUG
-        case .localDebug:
-            "Local Debug Backend"
-        #endif
-        case .http:
-            "HTTP Backend"
-        }
-    }
-}
-
 @MainActor
 final class AppAttestDemoViewModel: ObservableObject {
-    @Published var selectedBackendMode: AppAttestDemoBackendMode
-    @Published var httpBaseURL = AppAttestRuntimeDefaults.httpBaseURLText
-    #if DEBUG
-    @Published var localChallenge = LocalDebugAppAttestBackend.defaultChallengeString
-    #endif
     @Published var credentialName = "installation_keyid"
     @Published var requestMethod = "POST"
     @Published var requestPath = "/api/protected/demo"
@@ -50,22 +25,15 @@ final class AppAttestDemoViewModel: ObservableObject {
     private var appAttest: any AppAttestClient
     private var activeOperationCount = 0
     private let maxResultLineCount = 12
-    #if DEBUG
     private var debugBackend: LocalDebugAppAttestBackend?
-    #endif
 
     init(runtime: AppAttestRuntime) {
         self.appAttest = runtime.client
         self.backendDescription = runtime.backendDescription
-        #if DEBUG
         self.debugBackend = runtime.debugBackend
-        self.selectedBackendMode = runtime.debugBackend == nil ? .http : .localDebug
-        if case .some(.localDebug(let challenge)) = runtime.mode {
-            self.localChallenge = challenge
+        if runtime.mode == nil {
+            self.statusText = runtime.backendDescription
         }
-        #else
-        self.selectedBackendMode = .http
-        #endif
 
         #if DEBUG
         if let mode = runtime.mode,
@@ -80,54 +48,8 @@ final class AppAttestDemoViewModel: ObservableObject {
         #endif
     }
 
-    var shouldShowHTTPSettings: Bool {
-        selectedBackendMode == .http
-    }
-
     var isDebugExportAvailable: Bool {
-        #if DEBUG
-        return debugBackend != nil
-        #else
-        return false
-        #endif
-    }
-
-    func applyBackendSelection() {
-        do {
-            let mode: AppAttestBackendMode
-            switch selectedBackendMode {
-            #if DEBUG
-            case .localDebug:
-                mode = .localDebug(challenge: try cleanedLocalChallenge())
-            #endif
-            case .http:
-                guard let baseURL = URL(string: httpBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-                    throw AppAttestError.invalidConfiguration("HTTP Backend URL is invalid.")
-                }
-                mode = .http(baseURL: baseURL)
-            }
-
-            #if DEBUG
-            let runtime = try AppAttestRuntimeFactory.make(
-                mode: mode,
-                progressHandler: { [weak self] message in
-                    self?.appendProgress(message)
-                }
-            )
-            #else
-            let runtime = try AppAttestRuntimeFactory.make(mode: mode)
-            #endif
-            install(runtime: runtime)
-            headersText = ""
-            debugJSON = ""
-            statusText = """
-            Backend changed.
-            \(backendDescription)
-            """
-        } catch {
-            install(runtime: AppAttestRuntimeFactory.fallbackRuntime(error: error))
-            statusText = "Backend configuration failed\n\(error.localizedDescription)"
-        }
+        debugBackend != nil
     }
 
     func prepare() {
@@ -202,16 +124,14 @@ final class AppAttestDemoViewModel: ObservableObject {
     }
 
     func exportDebugJSON() {
-        #if DEBUG
         guard let debugBackend else {
-            debugJSON = "No DEBUG local backend is active."
+            debugJSON = "No local debug backend is active."
             return
         }
 
         runOperation("Export debug JSON") {
             self.debugJSON = try await debugBackend.exportDebugJSONString()
         }
-        #endif
     }
 
     func handleExportResult(_ result: Result<URL, any Error>) {
@@ -225,9 +145,8 @@ final class AppAttestDemoViewModel: ObservableObject {
     }
 
     func saveAttestationObject() {
-        #if DEBUG
         guard let debugBackend else {
-            statusText = "No DEBUG local backend is active."
+            statusText = "No local debug backend is active."
             return
         }
 
@@ -238,13 +157,11 @@ final class AppAttestDemoViewModel: ObservableObject {
             self.isExporterPresented = true
             self.statusText = "Choose where to save attestationObject.cbor."
         }
-        #endif
     }
 
     func saveAssertionObject() {
-        #if DEBUG
         guard let debugBackend else {
-            statusText = "No DEBUG local backend is active."
+            statusText = "No local debug backend is active."
             return
         }
 
@@ -255,13 +172,11 @@ final class AppAttestDemoViewModel: ObservableObject {
             self.isExporterPresented = true
             self.statusText = "Choose where to save assertionObject.cbor."
         }
-        #endif
     }
 
     func saveAssertionClientData() {
-        #if DEBUG
         guard let debugBackend else {
-            statusText = "No DEBUG local backend is active."
+            statusText = "No local debug backend is active."
             return
         }
 
@@ -272,7 +187,6 @@ final class AppAttestDemoViewModel: ObservableObject {
             self.isExporterPresented = true
             self.statusText = "Choose where to save assertionClientData.bin."
         }
-        #endif
     }
 
     private func cleanedCredentialName() throws -> String {
@@ -291,19 +205,6 @@ final class AppAttestDemoViewModel: ObservableObject {
         return path.hasPrefix("/") ? path : "/\(path)"
     }
 
-    #if DEBUG
-    private func cleanedLocalChallenge() throws -> String {
-        let challenge = localChallenge.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !challenge.isEmpty else {
-            throw AppAttestError.invalidConfiguration("Local challenge cannot be empty.")
-        }
-        guard Data(challenge.utf8).count >= 16 else {
-            throw AppAttestError.invalidConfiguration("Local challenge must be at least 16 bytes.")
-        }
-        return challenge
-    }
-    #endif
-
     private func demoURL(path: String) -> URL {
         var components = URLComponents()
         components.scheme = "https"
@@ -315,9 +216,7 @@ final class AppAttestDemoViewModel: ObservableObject {
     private func install(runtime: AppAttestRuntime) {
         appAttest = runtime.client
         backendDescription = runtime.backendDescription
-        #if DEBUG
         debugBackend = runtime.debugBackend
-        #endif
     }
 
     private func setResult(_ text: String) {
@@ -334,7 +233,6 @@ final class AppAttestDemoViewModel: ObservableObject {
     #endif
 
     private func latestChallengeText() async throws -> String {
-        #if DEBUG
         guard let debugBackend else {
             return "challenge: issued by HTTP Backend"
         }
@@ -344,9 +242,6 @@ final class AppAttestDemoViewModel: ObservableObject {
         challengeId: \(challenge.challengeId)
         challenge: \(challengeString)
         """
-        #else
-        return "challenge: issued by HTTP Backend"
-        #endif
     }
 
     private func runOperation(_ label: String, operation: @escaping () async throws -> Void) {

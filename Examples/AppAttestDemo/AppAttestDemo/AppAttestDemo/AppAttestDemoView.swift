@@ -25,34 +25,6 @@ struct AppAttestDemoView: View {
 
                 Form {
                     Section("Backend") {
-                        Picker("Backend", selection: $viewModel.selectedBackendMode) {
-                            ForEach(AppAttestDemoBackendMode.allCases) { mode in
-                                Text(mode.title).tag(mode)
-                            }
-                        }
-
-                        if viewModel.shouldShowHTTPSettings {
-                            TextField("Base URL", text: $viewModel.httpBaseURL)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .keyboardType(.URL)
-                        }
-
-                        #if DEBUG
-                        if viewModel.selectedBackendMode == .localDebug {
-                            TextField("Local challenge", text: $viewModel.localChallenge)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                        }
-                        #endif
-
-                        Button {
-                            viewModel.applyBackendSelection()
-                        } label: {
-                            Label("Use Selected Backend", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        .disabled(viewModel.isWorking)
-
                         LabeledContent("Active", value: viewModel.backendDescription)
                     }
 
@@ -63,7 +35,7 @@ struct AppAttestDemoView: View {
                     } header: {
                         Text("1. Credential")
                     } footer: {
-                        Text("credentialName is caller-defined. Challenge is issued by the selected backend when Prepare Credential or Register New Key runs.")
+                        Text("credentialName is caller-defined. Challenge is issued by the configured backend when Prepare Credential or Register New Key runs.")
                     }
 
                     Section {
@@ -123,7 +95,6 @@ struct AppAttestDemoView: View {
                         Text("Sign Protected Request generates assertion headers for this one method, path, and body.")
                     }
 
-                    #if DEBUG
                     if viewModel.isDebugExportAvailable {
                         Section("Debug Export") {
                             Button {
@@ -164,7 +135,6 @@ struct AppAttestDemoView: View {
                             }
                         }
                     }
-                    #endif
                 }
                 .scrollDismissesKeyboard(.interactively)
             }

@@ -3,10 +3,10 @@
 AppAttestKit is a Swift Package for client-side App Attest flows. The package
 owns App Attest attestation/assertion calls, backend transport models, an HTTP
 backend adapter, Keychain credential metadata storage, request binding, and
-DEBUG-only local export support.
+local debug export support.
 
 The example app lives in `Examples/AppAttestDemo` and imports `AppAttestKit`.
-SwiftUI, file export UI, backend selection UI, and result panels are not part
+SwiftUI, file export UI, backend configuration, and result panels are not part
 of the library target.
 
 ## Install
@@ -30,7 +30,7 @@ For local development, add this repository root as a local package. In
 - [DefaultAppAttestClient](../../Sources/AppAttestKit/DefaultAppAttestClient.swift) runs attestation, assertion, and metadata persistence.
 - [KeychainAppAttestCredentialStore](../../Sources/AppAttestKit/KeychainAppAttestCredentialStore.swift) stores `credentialName -> keyId` metadata.
 - [HTTPAppAttestBackend](../../Sources/AppAttestKit/HTTPAppAttestBackend.swift) is the production HTTP adapter.
-- [LocalDebugAppAttestBackend](../../Sources/AppAttestKit/LocalDebugAppAttestBackend.swift) is DEBUG-only fixed-challenge export support.
+- [LocalDebugAppAttestBackend](../../Sources/AppAttestKit/LocalDebugAppAttestBackend.swift) is fixed-challenge local export support.
 
 ## Boundary Rule
 
@@ -76,5 +76,5 @@ accepted for assertions. It does not make an untrusted device trustworthy again.
 - [ClientUsage.md](ClientUsage.md): public client API examples.
 - [CredentialNameGuide.md](CredentialNameGuide.md): credential naming boundary.
 - [BackendContract.md](BackendContract.md): HTTP contract and server duties.
-- [LocalDebug.md](LocalDebug.md): DEBUG local backend and export format.
+- [LocalDebug.md](LocalDebug.md): local debug backend and export format.
 - [SecurityNotes.md](SecurityNotes.md): trust boundaries and non-goals.

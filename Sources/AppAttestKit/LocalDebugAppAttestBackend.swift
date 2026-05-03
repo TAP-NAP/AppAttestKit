@@ -5,8 +5,7 @@
 
 import Foundation
 
-#if DEBUG
-/// DEBUG-only backend that generates deterministic local challenges and exports
+/// Local development backend that generates deterministic challenges and exports
 /// App Attest objects when no server is available.
 ///
 /// This does not perform production-grade attestation or assertion validation.
@@ -314,9 +313,3 @@ private nonisolated extension String {
         return chunks
     }
 }
-#else
-@available(*, unavailable, message: "LocalDebugAppAttestBackend is DEBUG-only and cannot be used in Release builds.")
-public final class LocalDebugAppAttestBackend {
-    public init() {}
-}
-#endif

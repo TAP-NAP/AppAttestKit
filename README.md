@@ -2,11 +2,11 @@
 
 AppAttestKit is a Swift Package for iOS App Attest client flows. It owns
 attestation and assertion calls, the backend protocol, an HTTP backend adapter,
-Keychain credential metadata storage, request binding, DEBUG-only local backend
+Keychain credential metadata storage, request binding, local debug backend
 support, and export helpers for debugging.
 
 The package target imports only `Foundation`, `DeviceCheck`, `Security`, and
-`CryptoKit`. UI, backend selection, result panels, and file export live in the
+`CryptoKit`. UI, backend configuration, result panels, and file export live in the
 example app at `Examples/AppAttestDemo`.
 
 ## How To Use
@@ -134,21 +134,33 @@ The client-side revoked status is only a local cache that avoids known-bad work.
 
 ## Local Debug
 
-`LocalDebugAppAttestBackend` exists only in DEBUG builds. It uses the fixed
-challenge id and challenge string `nearbycommunity0123`, accepts local registrations,
-and exports generated objects for inspection.
+`LocalDebugAppAttestBackend` is available in Debug and Release builds for local
+development. It uses the fixed challenge id and challenge string
+`nearbycommunity0123`, accepts local registrations, and exports generated
+objects for inspection.
 
 Local debug challenges use a long expiration time, currently 24 hours, so manual
 testing and export flows do not fail due to short-lived challenge expiry.
 Production servers should still issue short-lived, single-use challenges.
 
-Release builds cannot use the local debug backend and require HTTPS HTTP
-backends. They also reject hosts that resolve to localhost, IPv4
-`127.0.0.0/8`, IPv6 loopback, or `.local`.
+Release HTTP backends still require HTTPS. They also reject hosts that resolve
+to localhost, IPv4 `127.0.0.0/8`, IPv6 loopback, or `.local`.
 
-The example app does not ship a Release default backend URL. Configure
-`APP_ATTEST_BACKEND_URL` in the app Info.plist or build settings before using a
-Release build against a real server.
+The example app selects its backend at startup from build settings generated
+into Info.plist:
+
+```text
+APP_ATTEST_BACKEND_MODE=localDebug
+APP_ATTEST_LOCAL_CHALLENGE=nearbycommunity0123
+
+APP_ATTEST_BACKEND_MODE=http
+APP_ATTEST_BACKEND_URL=https://api.example.com
+```
+
+Debug defaults to `localDebug`. Release defaults to `http`, but intentionally
+does not ship a Release backend URL; set `APP_ATTEST_BACKEND_URL` before using
+a Release build against a real server. For Release local QA, explicitly set
+`APP_ATTEST_BACKEND_MODE=localDebug`.
 
 ## Documentation
 

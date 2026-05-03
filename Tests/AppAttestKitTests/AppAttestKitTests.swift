@@ -462,7 +462,6 @@ struct AppAttestKitTests {
         #expect(backend.endpoint("/app-attest/%2F/challenges").absoluteString == "https://api.example.com/v1/app-attest/%2F/challenges")
     }
 
-    #if DEBUG
     @Test func localDebugBackendUsesFixedChallengeAndExportsGeneratedObjects() async throws {
         let backend = LocalDebugAppAttestBackend()
         let challenge = try await backend.requestChallenge(
@@ -531,7 +530,6 @@ struct AppAttestKitTests {
             return
         }
     }
-    #endif
 }
 
 private actor InMemoryCredentialStore: AppAttestCredentialStore {

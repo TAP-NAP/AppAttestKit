@@ -29,11 +29,16 @@ The local debug backend does not validate production security. It accepts all
 registrations and reports accepted status. Real attestation and assertion
 verification must happen on a server.
 
-## DEBUG Only
+## Availability
 
-`LocalDebugAppAttestBackend` is compiled only under `#if DEBUG`. Release builds
-get an unavailable shell with the same name so accidental use fails at compile
-time.
+`LocalDebugAppAttestBackend` is compiled in Debug and Release builds so local
+development and export flows can be exercised from either configuration. It is
+still not a production backend and should not replace server-side validation.
+
+The example app selects this backend only when build settings generate
+`APP_ATTEST_BACKEND_MODE=localDebug` into Info.plist. Debug uses that mode by
+default. Release can also use it for local QA, but only through the same
+explicit build setting.
 
 `DefaultAppAttestClient` progress reporting is also DEBUG-only. Release builds
 do not expose the progress handler initializer.

@@ -81,10 +81,14 @@ the server remains the authority.
 
 ## Demo Button Mapping
 
+The example app chooses its backend at startup from `APP_ATTEST_BACKEND_MODE`
+and related build settings generated into Info.plist. The UI shows the active
+backend but does not switch backends at runtime.
+
 - `Prepare Credential`: calls `prepareIfNeeded(credentialName:)`.
 - `Register New Key`: calls `prepare(credentialName:)`.
 - `Check Status`: calls `status(credentialName:)`.
 - `Reset Local Credential`: calls `reset(credentialName:)`.
 - `Sign Protected Request`: calls `generateAssertion(credentialName:request:)`.
-- `Save Attestation CBOR`: DEBUG local export of the raw attestation object.
-- `Export JSON`: DEBUG local export of collected challenge, attestation, and assertion data.
+- `Save Attestation CBOR`: local debug export of the raw attestation object.
+- `Export JSON`: local debug export of collected challenge, attestation, and assertion data.

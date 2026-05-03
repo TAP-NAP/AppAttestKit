@@ -82,4 +82,4 @@ unsupported devices.
 ## Local Debug Is Not Security
 
 `LocalDebugAppAttestBackend` is for object generation and export only. It does
-not replace server validation and cannot be used in Release builds.
+not replace server validation, even when compiled into a Release build.
